@@ -1,0 +1,19 @@
+{
+  "name": "aureole",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "domutils": "^3.2.2",
+    "express": "^5.1.0",
+    "htmlparser2": "^10.0.0",
+    "oxc-parser": "^0.98.0",
+    "oxc-walker": "^0.6.0"
+  }
+}
