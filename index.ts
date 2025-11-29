@@ -9,8 +9,6 @@ const PORT = Number(process.env.PORT || 8080);
 /*                                UTILITIES                                   */
 /* -------------------------------------------------------------------------- */
 
-const pathex =
-	/(?:https?:\/\/[^\s"'()]+|\/\/[^\s"'()]+|\/[^\s"'()]+|\.\.?\/[^\s"'()]+|(?:\w[\w.-]*\/)+[^\s"'()]+)/g;
 
 function isUrl(u: string): boolean {
 	try {
@@ -40,16 +38,22 @@ function isUrl(u: string): boolean {
 }
 
 function proxify(url: string): string {
-	return url.match(/^(#|about:|data:|blob:|mailto:|javascript:|{|\*)/) ? url : `/proxy?q=${encodeURIComponent(url)}`;
+	return url.match(/^(#|about:|data:|blob:|mailto:|javascript:|{|\*)/) || url.includes("/proxy") ? url : `/proxy?q=${encodeURIComponent(url)}`;
 }
 
 function absolutify(url: string, base: string) {
 	try {
-		return new URL(url, base).toString();
+		return new URL(url).toString()
 	} catch {
-		return url;
+		try {
+			return new URL(url, base).toString();
+		} catch {
+			return url
+		}
 	}
 }
+
+
 
 function fixHeaders(req: Request): Record<string, string> {
 	const headers: Record<string, string> = {};
@@ -112,21 +116,36 @@ function removeCsp(upstream: Response): Headers {
 /*                                    CSS                                     */
 /* -------------------------------------------------------------------------- */
 
+
 function rewriteCss(css: string, baseUrl: string): string {
-	// url(...)
-	css = css.replace(/url\((['"]?)([^"')]+)\1\)/g, (_, quote, url) => {
-		const abs = absolutify(url, baseUrl);
-		return `url(${proxify(abs)})`;
+	// regex from vk6 (https://github.com/ading2210)
+	const Atruleregex =
+		/@import\s+(url\s*?\(.{0,9999}?\)|['"].{0,9999}?['"]|.{0,9999}?)($|\s|;)/gm;
+	css = css.replace(Atruleregex, (match, importStatement) => {
+		return match.replace(
+			importStatement,
+			importStatement.replace(
+				/^(url\(['"]?|['"]|)(.+?)(['"]|['"]?\)|)$/gm,
+				(match, firstQuote, url, endQuote) => {
+					if (firstQuote.startsWith("url")) {
+						return match;
+					}
+					const encodedUrl = proxify(url.trim())
+
+					return `${firstQuote}${encodedUrl}${endQuote}`;
+				}
+			)
+		);
 	});
 
-	// @import "foo.css"
-	css = css.replace(
-		/@import\s+(url\()?['"]?([^'")]+)['"]?\)?/g,
-		(match, isUrl, url) => {
-			const abs = absolutify(url, baseUrl);
-			return `@import url(${proxify(abs)})`;
-		},
-	);
+
+	const urlRegex = /url\(['"]?(.+?)['"]?\)/gm;
+	css = new String(css).toString();
+	css = css.replace(urlRegex, (match, url) => {
+		const encodedUrl = proxify(url.trim())
+
+		return match.replace(url, encodedUrl);
+	});
 
 	return css;
 }
@@ -134,9 +153,52 @@ function rewriteCss(css: string, baseUrl: string): string {
 /* -------------------------------------------------------------------------- */
 /*                                     JS                                     */
 /* -------------------------------------------------------------------------- */
-function rewriteJs(js: string, baseUrl: string): string {
-	js = js.replace(baseUrl, proxify(baseUrl));
-	// js = js.replace(pathex, (url) => proxify(url));
+function getPatches() {
+	return `
+  const oldOpen = XMLHttpRequest.prototype.open;
+  const proxy = "/proxy?q=";
+  const oldFetch = window.fetch;
+
+function absolutify(url) {
+	try {
+		return new URL(url, window.location.hostname).toString();
+	} catch {
+		return url;
+	}
+}
+
+function proxify(url) {
+	return url.match(/^(#|about:|data:|blob:|mailto:|javascript:|{|\\*)/) ? url : \`/proxy?q=\${encodeURIComponent(url)}\`;
+}
+
+  XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+    return oldOpen.call(this, method, proxify(url), async, user, password);
+  };    
+
+  window.proxyImport = (url) => {
+return import(proxify(url))
+}
+
+  window.fetch = function(input, init) {
+    if (input && typeof input === "object" && "url" in input) {
+      const newReq = new Request(proxify(input.url), input);
+      return oldFetch(newReq, init);
+    }
+
+	  // handle absolute urls
+    let url = typeof input === "string" ? input : input.toString();
+	  try {
+	    new URL(url);
+	  } catch(e) {
+	    url = new URL(url, location.origin).href;
+	  }
+	  return oldFetch(proxify(url), init);
+  };`
+}
+
+function rewriteJs(js: string, baseUrl: string, host: string): string {
+	js = js.replaceAll(baseUrl, proxify(baseUrl));
+	js = js.replaceAll("import(", "proxyImport(");
 
 	return js;
 }
@@ -145,7 +207,7 @@ function rewriteJs(js: string, baseUrl: string): string {
 /*                                    HTML                                    */
 /* -------------------------------------------------------------------------- */
 
-function rewriteHtml(html: string, baseUrl: string): Promise<string> {
+function rewriteHtml(html: string, baseUrl: string, host: string): Promise<string> {
 	return new Promise((resolve) => {
 		const handler = new DomHandler((err, dom) => {
 			if (err) return resolve(html);
@@ -179,7 +241,22 @@ function rewriteHtml(html: string, baseUrl: string): Promise<string> {
 				(el) => el.name === "script" && !el.attribs?.src,
 				dom,
 			).forEach((el) => {
-				const rewritten = rewriteJs(DomUtils.textContent(el), baseUrl);
+				const rewritten = rewriteJs(DomUtils.textContent(el), baseUrl, host);
+				// Replace children with a single text node containing rewritten JS
+				el.children = [
+					{
+						type: "text",
+						data: rewritten,
+						parent: el,
+					},
+				];
+			});
+
+			DomUtils.findAll(
+				(el) => el.name === "style",
+				dom,
+			).forEach((el) => {
+				const rewritten = rewriteCss(DomUtils.textContent(el), baseUrl);
 				// Replace children with a single text node containing rewritten JS
 				el.children = [
 					{
@@ -233,6 +310,7 @@ Bun.serve({
 			status: 500,
 		});
 		let currentUrl = finalUrl;
+		let host = new URL(currentUrl).hostname;
 
 		const options: RequestInit = {
 			method: req.method,
@@ -267,39 +345,13 @@ Bun.serve({
 		// HTML
 		if (ct.includes("text/html")) {
 			const raw = await upstream.text();
-			let rewritten = await rewriteHtml(raw, finalUrl);
+			let rewritten = await rewriteHtml(raw, finalUrl, host);
 			if (rewritten.includes("</head>")) {
 				rewritten = rewritten.replace(
 					"</head>",
 					`
 <script>
-  const oldOpen = XMLHttpRequest.prototype.open;
-  const proxy = "/proxy?q=";
-  const oldFetch = window.fetch;
-
-function proxify(url) {
-	return url.match(/^(#|about:|data:|blob:|mailto:|javascript:|{|\*)/) ? url : \`/proxy?q=\${encodeURIComponent(url)}\`;
-}
-
-  XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
-    return oldOpen.call(this, method, proxify(url), async, user, password);
-  };    
-
-  window.fetch = function(input, init) {
-    if (input && typeof input === "object" && "url" in input) {
-      const newReq = new Request(proxify(input.url), input);
-      return oldFetch(newReq, init);
-    }
-
-	  // handle absolute urls
-    let url = typeof input === "string" ? input : input.toString();
-	  try {
-	    new URL(url);
-	  } catch(e) {
-	    url = new URL(url, location.origin).href;
-	  }
-	  return oldFetch(proxify(url), init);
-  };
+${getPatches()}
 </script>
 			` + "</head>",
 				);
@@ -318,7 +370,8 @@ function proxify(url) {
 		// JS
 		if (ct.includes("javascript") || currentUrl.endsWith(".js")) {
 			const raw = await upstream.text();
-			const rewritten = rewriteJs(raw, currentUrl);
+			let rewritten = rewriteJs(raw, currentUrl, host);
+			rewritten = getPatches() + rewritten
 			headers.set("Content-Type", "application/javascript");
 			return new Response(rewritten, {
 				status: upstream.status,
