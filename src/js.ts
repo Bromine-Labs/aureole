@@ -7,7 +7,7 @@ function proxify(url: string | null | undefined, baseUrl: string): string {
 	if (!url || typeof url !== 'string') return url || '';
 	if (url.startsWith('/proxy?q=')) return url;
 
-	if (/^(#|about:|data:|blob:|mailto:|javascript:|\\{|\\*)/.test(url)) return url;
+	if (/^(#|about:|data:|blob:|mailto:|javascript:|tel:|sms:|\{|\*)/.test(url)) return url;
 
 	try {
 		const absolute = new URL(url, baseUrl).href;
