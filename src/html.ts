@@ -41,6 +41,37 @@ export function rewriteHtml(
 			rewriteAttr("area", "href");
 			rewriteAttr("form", "action");
 
+			//srcset
+			DomUtils.findAll(
+				(el) => el.attribs?.srcset,
+				dom,
+			).forEach((el) => {
+				const parts = el.attribs.srcset.split(/,\s+/);
+
+				const rewritten = parts.map((part) => {
+					const partpart = part.trim().split(/\s+/);
+
+					if (partpart.length === 0) return "";
+
+					const url = partpart[0];
+					const descriptor = partpart.slice(1).join(" "); // e.g., "1x" or "1000w"
+
+					const newUrl = proxify(absolutify(url, baseUrl));
+
+					return descriptor ? `${newUrl} ${descriptor}` : newUrl;
+				});
+
+				el.attribs.srcset = rewritten.filter(Boolean).join(", ");
+			});
+
+			DomUtils.findAll(
+				(el) => el.attribs?.style,
+				dom,
+			).forEach((el) => {
+				const rewritten = rewriteCss(el.attribs.style, baseUrl);
+				el.attribs["style"] = rewritten;
+			});
+
 			DomUtils.findAll(
 				(el) => el.name === "script" && !el.attribs?.src && el.attribs.type != "application/json" && el.attribs.type != "application/ld+json",
 				dom,
