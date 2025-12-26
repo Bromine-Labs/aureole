@@ -59,6 +59,7 @@ function removeCsp(upstream: Response): Headers {
 				"content-encoding",
 				"content-security-policy",
 				"x-content-security-policy",
+				"content-security-policy-report-only",
 				"x-webkit-csp",
 			].includes(key.toLowerCase())
 		) {
