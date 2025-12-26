@@ -1,21 +1,8 @@
 import { parse } from 'meriyah';
 import { walk } from 'zimmerframe';
-import { isUrl, proxify } from "./utils.ts"
+import { absolutify, proxify } from "./utils.ts"
 import MagicString from 'magic-string';
 
-// function proxify(url: string | null | undefined, baseUrl: string): string {
-// 	if (!url || typeof url !== 'string') return url || '';
-// 	if (url.startsWith('/proxy?q=')) return url;
-//
-// 	if (/^(#|about:|data:|blob:|mailto:|javascript:|tel:|sms:|\{|\*)/.test(url)) return url;
-//
-// 	try {
-// 		const absolute = new URL(url, baseUrl).href;
-// 		return `/proxy?q=${encodeURIComponent(absolute)}`;
-// 	} catch (e) {
-// 		return url;
-// 	}
-// }
 
 export function rewriteJs(js: string, baseUrl: string, host: string): string {
 	const s = new MagicString(js);
@@ -26,12 +13,14 @@ export function rewriteJs(js: string, baseUrl: string, host: string): string {
 	}) as any;
 
 
-
 	const funcNames = ['fetch', 'importScripts', 'proxyImport'];
 	const classNames = ['Request', 'URL', 'EventSource', 'Worker', 'SharedWorker'];
 
-	walk(ast as node, {}, (node: any) => {
-		if (node.type === 'MemberExpression') {
+	walk(ast, null, {
+		_(node, { next }) {
+			next();
+		},
+		MemberExpression(node: any, { next }) {
 			// window.location -> window.proxyLocation
 			if (node.object.type === 'Identifier' && node.object.name === 'window' &&
 				node.property.type === 'Identifier' && node.property.name === 'location') {
@@ -42,18 +31,21 @@ export function rewriteJs(js: string, baseUrl: string, host: string): string {
 			if (node.object.type === 'Identifier' && node.object.name === 'location' && !node.computed) {
 				s.overwrite(node.object.start, node.object.end, 'proxyLocation');
 			}
-		}
+
+			next();
+		},
 
 		// import(...) -> proxyImport(...)
-		if (node.type === 'ImportExpression') {
+		ImportExpression(node: any, { next }) {
 			s.overwrite(node.start, node.start + 6, 'proxyImport');
 			if (node.source.type === 'Literal' && typeof node.source.value === 'string') {
 				s.overwrite(node.source.start + 1, node.source.end - 1, proxify(node.source.value));
 			}
-		}
+			next()
+		},
 
 		// fetch("..."), importScripts("...")
-		if (node.type === 'CallExpression') {
+		CallExpression(node: any, { next }) {
 			if (node.callee.type === 'Identifier' && funcNames.includes(node.callee.name)) {
 				node.arguments.forEach((arg: any) => {
 					if (arg.type === 'Literal' && typeof arg.value === 'string') {
@@ -70,28 +62,34 @@ export function rewriteJs(js: string, baseUrl: string, host: string): string {
 					s.overwrite(arg.start + 1, arg.end - 1, proxify(arg.value));
 				}
 			}
-		}
+			next()
+		},
 
 		// Constructor Calls: new Worker("..."), new URL("...")
-		if (node.type === 'NewExpression') {
+		NewExpression(node: any, { next }) {
 			if (node.callee.type === 'Identifier' && classNames.includes(node.callee.name)) {
 				const arg = node.arguments[0];
 				if (arg && arg.type === 'Literal' && typeof arg.value === 'string') {
 					s.overwrite(arg.start + 1, arg.end - 1, proxify(arg.value));
 				}
 			}
-		}
+			next()
+		},
 
 		// Imports/Exports: import {x} from "..."
-		if (node.type === 'ImportDeclaration' || node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') {
+		'ImportDeclaration|ExportNamedDeclaration|ExportAllDeclaration'(node: any, { next }) {
 			if (node.source && node.source.type === 'Literal' && typeof node.source.value === 'string') {
 				s.overwrite(node.source.start + 1, node.source.end - 1, proxify(node.source.value));
 			}
-		}
+			next();
+		},
 
 		// proxify baseurl
-		if (node.type === 'Literal' && node.value === baseUrl) {
-			s.overwrite(node.start + 1, node.end - 1, proxify(baseUrl));
+		Literal(node: any, { next }) {
+			if (node.value === baseUrl) {
+				s.overwrite(node.start + 1, node.end - 1, proxify(baseUrl));
+			}
+			next();
 		}
 
 	});
