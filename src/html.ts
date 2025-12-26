@@ -40,6 +40,51 @@ export function rewriteHtml(
 			rewriteAttr("area", "href");
 			rewriteAttr("form", "action");
 
+
+
+			const typeBlacklist = ["application/json", "application/ld+json", "importmap"];
+
+			DomUtils.findAll(
+				(el) =>
+					el.name === "script" &&
+					!el.attribs?.src
+					&&
+					!typeBlacklist.includes(el.attribs?.type),
+				dom,
+			).forEach((el) => {
+				const rewritten = rewriteJs(DomUtils.textContent(el), baseUrl, host);
+				// Replace children with a single text node containing rewritten JS
+				el.children = [
+					{
+						type: "text",
+						data: rewritten,
+						parent: el,
+					},
+				];
+			});
+
+
+			//css
+			DomUtils.findAll(
+				(el) => el.attribs?.style,
+				dom,
+			).forEach((el) => {
+				const rewritten = rewriteCss(el.attribs.style, baseUrl);
+				el.attribs["style"] = rewritten;
+			});
+
+			DomUtils.findAll((el) => el.name === "style", dom).forEach((el) => {
+				const rewritten = rewriteCss(DomUtils.textContent(el), baseUrl);
+				el.children = [
+					{
+						type: "text",
+						data: rewritten,
+						parent: el,
+					},
+				];
+			});
+
+
 			//srcset
 			DomUtils.findAll(
 				(el) => el.attribs?.srcset,
@@ -63,40 +108,9 @@ export function rewriteHtml(
 				el.attribs.srcset = rewritten.filter(Boolean).join(", ");
 			});
 
-			DomUtils.findAll(
-				(el) => el.attribs?.style,
-				dom,
-			).forEach((el) => {
-				const rewritten = rewriteCss(el.attribs.style, baseUrl);
-				el.attribs["style"] = rewritten;
-			});
 
-			DomUtils.findAll(
-				(el) => el.name === "script" && !el.attribs?.src && el.attribs.type != "application/json" && el.attribs.type != "application/ld+json",
-				dom,
-			).forEach((el) => {
-				const rewritten = rewriteJs(DomUtils.textContent(el), baseUrl, host);
-				// Replace children with a single text node containing rewritten JS
-				el.children = [
-					{
-						type: "text",
-						data: rewritten,
-						parent: el,
-					},
-				];
-			});
 
-			DomUtils.findAll((el) => el.name === "style", dom).forEach((el) => {
-				const rewritten = rewriteCss(DomUtils.textContent(el), baseUrl);
-				// Replace children with a single text node containing rewritten JS
-				el.children = [
-					{
-						type: "text",
-						data: rewritten,
-						parent: el,
-					},
-				];
-			});
+
 
 			let rewritten = serialize(dom, { encodeEntities: false });
 			if (rewritten.includes("</head>")) {
