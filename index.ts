@@ -3,6 +3,9 @@ import { rewriteCss } from "./src/css.ts";
 import { absolutify, isUrl } from "./src/utils.ts";
 import { rewriteHtml } from "./src/html.ts";
 
+import { serveStatic } from 'hono/bun'
+
+
 const PORT = Number(process.env.PORT || 8080);
 
 /* -------------------------------------------------------------------------- */
@@ -75,6 +78,11 @@ Bun.serve({
 		const url = new URL(req.url);
 
 		if (url.pathname !== "/proxy") {
+			const publicPath = url.pathname === "/" ? "/index.html" : url.pathname;
+			const file = Bun.file("./public" + publicPath);
+
+			if (await file.exists()) return new Response(file);
+
 			return new Response("Not found", { status: 404 });
 		}
 

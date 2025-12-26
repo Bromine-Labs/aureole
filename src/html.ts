@@ -1,7 +1,6 @@
 import { rewriteJs } from "./js.ts";
 import { rewriteCss } from "./css.ts";
 import { proxify, absolutify } from "./utils.ts";
-import { getPatches } from "./patches.ts";
 
 import { Parser } from "htmlparser2";
 import { DomHandler, DomUtils } from "htmlparser2";
@@ -103,11 +102,7 @@ export function rewriteHtml(
 			if (rewritten.includes("</head>")) {
 				rewritten = rewritten.replace(
 					"</head>",
-					`
-<script>
-${getPatches()}
-</script>
-			` + "</head>",
+					"<script src=\"/aureole_patches.js\"></script></head>",
 				);
 			}
 			resolve(rewritten);

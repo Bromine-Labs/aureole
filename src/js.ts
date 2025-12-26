@@ -2,7 +2,6 @@ import { parse } from 'meriyah';
 import { walk } from 'zimmerframe';
 import { isUrl, proxify } from "./utils.ts"
 import MagicString from 'magic-string';
-import { getPatches } from "./patches";
 
 // function proxify(url: string | null | undefined, baseUrl: string): string {
 // 	if (!url || typeof url !== 'string') return url || '';
