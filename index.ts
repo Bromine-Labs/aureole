@@ -139,8 +139,7 @@ Bun.serve({
 
 
 		const ct = upstream.headers.get("content-type") || "";
-		// sfd is empty for whatever reason
-		const sfd = upstream.headers.get("Sec-Fetch-Dest") || "";
+		const sfd = req.headers.get("Sec-Fetch-Dest") || "";
 		const headers = removeCsp(upstream);
 
 		// HTML
@@ -152,7 +151,7 @@ Bun.serve({
 		}
 
 		// CSS
-		if (sfd.includes("style") || currentUrl.endsWith(".css")) {
+		if (sfd.includes("style")) {
 			const raw = await upstream.text();
 			const rewritten = rewriteCss(raw, currentUrl);
 			headers.set("Content-Type", "text/css");
@@ -160,7 +159,7 @@ Bun.serve({
 		}
 
 		// JS
-		if (sfd.includes("script") || currentUrl.endsWith(".js")) {
+		if (sfd.includes("script")) {
 			const raw = await upstream.text();
 			let rewritten = rewriteJs(raw, currentUrl, host);
 			headers.set("Content-Type", "application/javascript");
