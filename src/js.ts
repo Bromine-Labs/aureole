@@ -5,11 +5,18 @@ import * as recast from 'recast';
 
 
 export function rewriteJs(js: string, baseUrl: string, host: string): string {
+
 	const ast = recast.parse(js, {
 		parser: {
-			parse: (code) => parse(code, { module: true, preserveParens: false })
+			parse: (code: string) => {
+				const tokens: any[] = [];
+				return Object.assign(
+					require("meriyah").parse(code, { loc: true, ranges: true, module: true, next: true, onToken: tokens }),
+					{ tokens }
+				);
+			}
 		}
-	}) as any;
+	});
 
 
 	const funcNames = ['fetch', 'importScripts', 'proxyImport'];
