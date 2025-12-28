@@ -88,7 +88,7 @@ export function rewriteJs(js: string, baseUrl: string, host: string): string {
 		// Imports/Exports: import {x} from "..."
 		ImportDeclaration(node: any, { next }) {
 			if (node.source && node.source.type === 'Literal' && typeof node.source.value === 'string') {
-				node.source.value = proxify(absolutify(node.source.value, "https://" + host));
+				node.source.value = proxify(absolutify(node.source.value, baseUrl));
 				node.source.raw = `'${node.source.value}'`;
 			}
 			next();
