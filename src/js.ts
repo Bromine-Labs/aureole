@@ -5,7 +5,6 @@ import * as recast from 'recast';
 
 
 export function rewriteJs(js: string, baseUrl: string, host: string): string {
-
 	const ast = recast.parse(js, {
 		parser: {
 			parse: (code: string) => {
@@ -87,9 +86,9 @@ export function rewriteJs(js: string, baseUrl: string, host: string): string {
 		},
 
 		// Imports/Exports: import {x} from "..."
-		'ImportDeclaration|ExportNamedDeclaration|ExportAllDeclaration'(node: any, { next }) {
+		ImportDeclaration(node: any, { next }) {
 			if (node.source && node.source.type === 'Literal' && typeof node.source.value === 'string') {
-				node.source.value = proxify(node.source.value);
+				node.source.value = proxify(absolutify(node.source.value, "https://" + host));
 				node.source.raw = `'${node.source.value}'`;
 			}
 			next();
