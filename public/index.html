@@ -1,0 +1,5 @@
+<form action="/proxy" method="GET"
+	onsubmit="const q = this.q; if (q.value && !/^https?:\/\//i.test(q.value)) q.value = 'https://' + q.value;">
+	<input type="text" name="q" placeholder="Enter URL to proxy...">
+	<button type="submit">Go</button>
+</form>

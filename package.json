@@ -1,27 +1,23 @@
 {
-  "name": "aureole",
-  "module": "index.ts",
-  "type": "module",
-  "scripts": {
-    "format": "prettier . -w"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "prettier": "^3.6.2"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
-    "acorn": "^8.15.0",
-    "acorn-walk": "^8.3.4",
-    "domutils": "^3.2.2",
-    "express": "^5.1.0",
-    "hono": "^4.11.3",
-    "htmlparser2": "^10.0.0",
-    "ipaddr.js": "^2.2.0",
-    "meriyah": "^7.0.0",
-    "recast": "^0.23.11",
-    "zimmerframe": "^1.1.4"
-  }
+	"name": "aureole",
+	"module": "index.ts",
+	"type": "module",
+	"scripts": {
+		"format": "prettier . -w"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"prettier": "^3.7.4"
+	},
+	"peerDependencies": {
+		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"domutils": "^3.2.2",
+		"htmlparser2": "^10.0.0",
+		"ipaddr.js": "^2.3.0",
+		"meriyah": "^7.0.0",
+		"recast": "^0.23.11",
+		"zimmerframe": "^1.1.4"
+	}
 }
