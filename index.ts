@@ -7,9 +7,8 @@ import { rewriteHtml } from "./src/html.ts";
 import { Readable } from "stream";
 
 
-import { paymentMiddleware } from "@x402/express";
-import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-import { registerExactEvmScheme } from "@x402/evm/exact/server";
+
+import { paymentMiddleware } from "x402-express";
 
 
 const payTo = "0xYourAddress";
@@ -19,30 +18,20 @@ const PORT = Number(process.env.PORT || 8080);
 
 app.use(express.text({ type: "*/*", limit: "50mb" }));
 
-const facilitatorClient = new HTTPFacilitatorClient({
-	url: "https://x402.org/facilitator",
-});
-
-const server = new x402ResourceServer(facilitatorClient);
-registerExactEvmScheme(server);
 
 app.use(
 	paymentMiddleware(
+		payTo,
 		{
 			"GET /proxy": {
-				accepts: [
-					{
-						scheme: "exact",
-						price: "$1",
-						network: "eip155:84532",
-						payTo,
-					},
-				],
-				description: "Proxy access to any URL",
-				mimeType: "text/html",
+				price: "$1",
+				network: "solana",
+				config: {
+					description: "Proxy access to any URL",
+					mimeType: "text/html",
+				}
 			},
-		},
-		server
+		}
 	),
 );
 
